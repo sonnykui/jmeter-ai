@@ -6,6 +6,7 @@ import org.apache.jmeter.gui.util.JMeterToolBar;
 import org.qainsights.jmeter.ai.service.AiService;
 import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.BedrockService;
 import org.qainsights.jmeter.ai.utils.AiConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,7 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
      * @return the AI service instance, or null if configuration is invalid
      */
     private AiService createAiService(String serviceType) {
+        log.info("Creating AI service for type: {}", serviceType);
         try {
             if ("openai".equalsIgnoreCase(serviceType)) {
                 // Check if OpenAI API key is configured
@@ -76,6 +78,12 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
                 if (apiKey != null && !apiKey.isEmpty() && !apiKey.equals("YOUR_API_KEY")
                         && model != null && !model.isEmpty()) {
                     return new ClaudeService();
+                }
+            } else if ("bedrock".equalsIgnoreCase(serviceType)) {
+                // Check if AWS Bedrock model is configured
+                String model = AiConfig.getProperty("bedrock.model", "");
+                if (model != null && !model.isEmpty()) {
+                    return new BedrockService();
                 }
             }
         } catch (Exception e) {
