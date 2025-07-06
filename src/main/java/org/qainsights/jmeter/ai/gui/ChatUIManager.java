@@ -16,6 +16,7 @@ import org.qainsights.jmeter.ai.service.ClaudeService;
 import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.utils.Models;
 import org.qainsights.jmeter.ai.utils.VersionUtils;
+import org.qainsights.jmeter.ai.utils.AiConfig;
 import com.anthropic.models.ModelInfo;
 import com.anthropic.models.ModelListPage;
 
@@ -203,11 +204,30 @@ public class ChatUIManager {
                 com.openai.models.ModelListPage openAiModels = null;
                 
                 try {
-                    // Get Anthropic models
-                    anthropicModels = Models.getAnthropicModels(claudeService.getClient());
+                    // Get service type from configuration
+                    String serviceType = AiConfig.getProperty("jmeter.ai.service.type", "openai");
+                    
+                    // Get Anthropic models based on service type
+                    anthropicModels = Models.getAnthropicModels(claudeService.getClient(), serviceType);
                     if (anthropicModels != null && anthropicModels.data() != null) {
                         models.addAll(anthropicModels.data());
-                        log.info("Added {} Anthropic models", anthropicModels.data().size());
+                        log.info("Added {} Anthropic models from {} service", anthropicModels.data().size(), serviceType);
+                    } else if ("bedrock".equalsIgnoreCase(serviceType)) {
+                        // For Bedrock, get model IDs directly since ModelListPage cannot be created
+                        List<String> bedrockModelIds = Models.getAnthropicModelIds(claudeService.getClient(), serviceType);
+                        for (String modelId : bedrockModelIds) {
+                            try {
+                                ModelInfo modelInfo = ModelInfo.builder()
+                                    .id(modelId)
+                                    .displayName(modelId)
+                                    .createdAt(java.time.OffsetDateTime.now())
+                                    .build();
+                                models.add(modelInfo);
+                            } catch (Exception e) {
+                                log.warn("Could not create ModelInfo for Bedrock model {}: {}", modelId, e.getMessage());
+                            }
+                        }
+                        log.info("Added {} Anthropic models from Bedrock service", bedrockModelIds.size());
                     }
                 } catch (Exception e) {
                     log.error("Error loading Anthropic models: {}", e.getMessage(), e);
@@ -234,6 +254,7 @@ public class ChatUIManager {
                                     // Create a ModelInfo for each OpenAI model
                                     ModelInfo modelInfo = ModelInfo.builder()
                                         .id("openai:" + openAiModel.id())
+                                        .createdAt(java.time.OffsetDateTime.now())
                                         .build();
                                     
                                     models.add(modelInfo);

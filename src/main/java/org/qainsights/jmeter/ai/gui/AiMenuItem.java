@@ -61,6 +61,7 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
      * @return the AI service instance, or null if configuration is invalid
      */
     private AiService createAiService(String serviceType) {
+        log.info("Creating AI service for type: {}", serviceType);
         try {
             if ("openai".equalsIgnoreCase(serviceType)) {
                 // Check if OpenAI API key is configured
@@ -79,13 +80,9 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
                     return new ClaudeService();
                 }
             } else if ("bedrock".equalsIgnoreCase(serviceType)) {
-                // Check if AWS Bedrock credentials are configured
-                String accessKey = AiConfig.getProperty("bedrock.access.key", "");
-                String secretKey = AiConfig.getProperty("bedrock.secret.key", "");
+                // Check if AWS Bedrock model is configured
                 String model = AiConfig.getProperty("bedrock.model", "");
-                if (accessKey != null && !accessKey.isEmpty() && !accessKey.equals("YOUR_AWS_ACCESS_KEY_ID")
-                        && secretKey != null && !secretKey.isEmpty() && !secretKey.equals("YOUR_AWS_SECRET_ACCESS_KEY")
-                        && model != null && !model.isEmpty()) {
+                if (model != null && !model.isEmpty()) {
                     return new BedrockService();
                 }
             }

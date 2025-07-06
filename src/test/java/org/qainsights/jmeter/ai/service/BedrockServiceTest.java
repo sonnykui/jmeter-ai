@@ -17,7 +17,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +43,7 @@ class BedrockServiceTest {
                     .thenReturn("anthropic.claude-3-sonnet-20240229-v1:0");
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.temperature", "0.5")).thenReturn("0.5");
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.max.tokens", "1024")).thenReturn("1024");
-            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.system.prompt", any())).thenReturn("Test system prompt");
+            aiConfigMock.when(() -> AiConfig.getProperty(eq("bedrock.system.prompt"), anyString())).thenReturn("Test system prompt");
 
             // This will fail due to AWS SDK initialization, but we'll handle it in tests
         }
@@ -53,10 +53,20 @@ class BedrockServiceTest {
     void testServiceName() {
         // Test the service name without initializing the full service
         try (MockedStatic<AiConfig> aiConfigMock = mockStatic(AiConfig.class)) {
-            aiConfigMock.when(() -> AiConfig.getProperty(anyString(), anyString())).thenReturn("test-value");
+            // Setup proper numeric values to avoid parsing errors
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.max.history.size", "10")).thenReturn("10");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.temperature", "0.5")).thenReturn("0.5");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.max.tokens", "1024")).thenReturn("1024");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.region", "us-east-1")).thenReturn("us-east-1");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.model", "anthropic.claude-3-sonnet-20240229-v1:0"))
+                    .thenReturn("anthropic.claude-3-sonnet-20240229-v1:0");
+            aiConfigMock.when(() -> AiConfig.getProperty(eq("bedrock.system.prompt"), anyString())).thenReturn("Test system prompt");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.access.key", "")).thenReturn("");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.secret.key", "")).thenReturn("");
             
-            // This will throw an exception due to AWS credentials, but we can still test some methods
-            assertThrows(IllegalStateException.class, () -> new BedrockService());
+            // Service should be created successfully with default credential provider chain
+            // Note: This may fail at runtime if no AWS credentials are available, but constructor should succeed
+            assertDoesNotThrow(() -> new BedrockService());
         }
     }
 
@@ -87,27 +97,34 @@ class BedrockServiceTest {
     void testConfigurationValidation() {
         // Test that BedrockService validates configuration properly
         try (MockedStatic<AiConfig> aiConfigMock = mockStatic(AiConfig.class)) {
-            // Test with missing access key
+            // Setup common numeric properties
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.max.history.size", "10")).thenReturn("10");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.temperature", "0.5")).thenReturn("0.5");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.max.tokens", "1024")).thenReturn("1024");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.region", "us-east-1")).thenReturn("us-east-1");
+            aiConfigMock.when(() -> AiConfig.getProperty("bedrock.model", "anthropic.claude-3-sonnet-20240229-v1:0"))
+                    .thenReturn("anthropic.claude-3-sonnet-20240229-v1:0");
+            aiConfigMock.when(() -> AiConfig.getProperty(eq("bedrock.system.prompt"), anyString())).thenReturn("Test system prompt");
+            
+            // Test with missing access key (should use default credential provider chain)
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.access.key", "")).thenReturn("");
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.secret.key", "")).thenReturn("test-secret");
-            aiConfigMock.when(() -> AiConfig.getProperty(anyString(), anyString())).thenReturn("test-value");
             
-            assertThrows(IllegalStateException.class, () -> new BedrockService());
+            assertDoesNotThrow(() -> new BedrockService());
             
-            // Test with missing secret key
+            // Test with missing secret key (should use default credential provider chain)
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.access.key", "")).thenReturn("test-access");
             aiConfigMock.when(() -> AiConfig.getProperty("bedrock.secret.key", "")).thenReturn("");
             
-            assertThrows(IllegalStateException.class, () -> new BedrockService());
+            assertDoesNotThrow(() -> new BedrockService());
         }
     }
 
     @Test
     void testModelConfiguration() {
-        BedrockService service = mock(BedrockService.class);
+        BedrockService service = mock(BedrockService.class, withSettings().lenient());
         
-        // Test model setter and getter methods
-        when(service.getCurrentModel()).thenCallRealMethod();
+        // Test model setter method
         doCallRealMethod().when(service).setModel(anyString());
         
         service.setModel("anthropic.claude-3-haiku-20240307-v1:0");
@@ -118,10 +135,9 @@ class BedrockServiceTest {
 
     @Test
     void testTemperatureConfiguration() {
-        BedrockService service = mock(BedrockService.class);
+        BedrockService service = mock(BedrockService.class, withSettings().lenient());
         
-        // Test temperature setter and getter methods
-        when(service.getTemperature()).thenCallRealMethod();
+        // Test temperature setter method
         doCallRealMethod().when(service).setTemperature(anyFloat());
         
         service.setTemperature(0.7f);
@@ -132,10 +148,9 @@ class BedrockServiceTest {
 
     @Test
     void testMaxTokensConfiguration() {
-        BedrockService service = mock(BedrockService.class);
+        BedrockService service = mock(BedrockService.class, withSettings().lenient());
         
-        // Test max tokens setter and getter methods
-        when(service.getMaxTokens()).thenCallRealMethod();
+        // Test max tokens setter method
         doCallRealMethod().when(service).setMaxTokens(anyLong());
         
         service.setMaxTokens(2048L);

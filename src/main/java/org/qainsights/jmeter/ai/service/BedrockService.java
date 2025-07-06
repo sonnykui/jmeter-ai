@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
@@ -113,24 +114,17 @@ public class BedrockService implements AiService {
         this.maxHistorySize = Integer.parseInt(AiConfig.getProperty("bedrock.max.history.size", "10"));
 
         // Initialize AWS credentials and client
-        String accessKey = AiConfig.getProperty("bedrock.access.key", "");
-        String secretKey = AiConfig.getProperty("bedrock.secret.key", "");
         String region = AiConfig.getProperty("bedrock.region", "us-east-1");
 
-        if (accessKey.isEmpty() || secretKey.isEmpty()) {
-            log.error("AWS credentials not configured. Please set bedrock.access.key and bedrock.secret.key in jmeter.properties");
-            throw new IllegalStateException("AWS credentials not configured");
-        }
-
-        AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(accessKey, secretKey);
-        
+        // Use DefaultCredentialsProvider for AWS credential chain
         this.client = BedrockRuntimeClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(awsCredentials))
+                .credentialsProvider(DefaultCredentialsProvider.create())
                 .build();
+        log.info("Using DefaultCredentialsProvider for Bedrock service in region: {}", region);
 
         // Get default model from properties
-        this.currentModelId = AiConfig.getProperty("bedrock.model", "anthropic.claude-3-sonnet-20240229-v1:0");
+        this.currentModelId = AiConfig.getProperty("bedrock.model", "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
         this.temperature = Float.parseFloat(AiConfig.getProperty("bedrock.temperature", "0.5"));
         this.maxTokens = Long.parseLong(AiConfig.getProperty("bedrock.max.tokens", "1024"));
 
@@ -210,7 +204,7 @@ public class BedrockService implements AiService {
 
             // Ensure a model is set
             if (currentModelId == null || currentModelId.isEmpty()) {
-                currentModelId = "anthropic.claude-3-sonnet-20240229-v1:0";
+                currentModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0";
                 log.warn("No model was set, defaulting to: {}", currentModelId);
             }
 

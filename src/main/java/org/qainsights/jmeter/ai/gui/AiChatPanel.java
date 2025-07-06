@@ -23,11 +23,13 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.PropertyIterator;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.BedrockService;
 import org.qainsights.jmeter.ai.usage.UsageCommandHandler;
 import org.qainsights.jmeter.ai.utils.JMeterElementManager;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.utils.Models;
 import org.qainsights.jmeter.ai.utils.VersionUtils;
+import org.qainsights.jmeter.ai.utils.AiConfig;
 import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 import org.qainsights.jmeter.ai.lint.LintCommandHandler;
 import org.qainsights.jmeter.ai.wrap.WrapCommandHandler;
@@ -58,6 +60,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
     private List<String> conversationHistory;
     private ClaudeService claudeService;
     private OpenAiService openAiService;
+    private BedrockService bedrockService;
     private TreeNavigationButtons treeNavigationButtons;
     private JPanel navigationPanel; // Added field for navigation panel
 
@@ -85,6 +88,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         // Initialize services and utilities
         claudeService = new ClaudeService();
         openAiService = new OpenAiService();
+        bedrockService = new BedrockService();
         messageProcessor = new MessageProcessor();
 
         // Initialize tree navigation buttons with action listeners
@@ -408,13 +412,21 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
 
                 // Get Anthropic models
                 try {
-                    ModelListPage anthropicModels = Models.getAnthropicModels(claudeService.getClient());
+                    // Get service type from configuration
+                    String serviceType = AiConfig.getProperty("jmeter.ai.service.type", "openai");
+                    
+                    ModelListPage anthropicModels = Models.getAnthropicModels(claudeService.getClient(), serviceType);
                     if (anthropicModels != null && anthropicModels.data() != null) {
                         for (ModelInfo model : anthropicModels.data()) {
                             allModels.add(model.id());
                             log.debug("Added Anthropic model: {}", model.id());
                         }
-                        log.info("Added {} Anthropic models", anthropicModels.data().size());
+                        log.info("Added {} Anthropic models from {} service", anthropicModels.data().size(), serviceType);
+                    } else if ("bedrock".equalsIgnoreCase(serviceType)) {
+                        // For Bedrock, get model IDs directly since ModelListPage cannot be created
+                        List<String> bedrockModelIds = Models.getAnthropicModelIds(claudeService.getClient(), serviceType);
+                        allModels.addAll(bedrockModelIds);
+                        log.info("Added {} Anthropic models from Bedrock service", bedrockModelIds.size());
                     }
                 } catch (Exception e) {
                     log.error("Error loading Anthropic models: {}", e.getMessage(), e);
@@ -1277,8 +1289,18 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
 
             // Call OpenAI API with conversation history
             return openAiService.generateResponse(new ArrayList<>(conversationHistory));
+        } else if ((selectedModel.contains("anthropic.") && selectedModel.contains(":")) || 
+                   (selectedModel.startsWith("us.anthropic.") || selectedModel.startsWith("eu.anthropic."))) {
+            // This is a Bedrock model (format: anthropic.claude-model-name:version or us/eu.anthropic.model:version)
+            log.info("Using Bedrock model: {}", selectedModel);
+
+            // Set the model in the Bedrock service
+            bedrockService.setModel("us." + selectedModel);
+
+            // Call Bedrock API with conversation history
+            return bedrockService.generateResponse(new ArrayList<>(conversationHistory));
         } else {
-            // This is an Anthropic model
+            // This is a direct Anthropic model
             log.info("Using Anthropic model: {}", selectedModel);
 
             // Set the model in the Claude service
